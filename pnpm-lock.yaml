@@ -30,6 +30,9 @@ importers:
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
+      ws:
+        specifier: ^8.19.0
+        version: 8.19.0
 
   packages/daemon:
     dependencies:
@@ -972,6 +975,18 @@ packages:
       yaml:
         optional: true
 
+  ws@8.19.0:
+    resolution: {integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.25.12':
@@ -1656,3 +1671,5 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.19.7
       fsevents: 2.3.3
+
+  ws@8.19.0: {}

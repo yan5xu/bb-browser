@@ -20,6 +20,7 @@ import { snapshotCommand } from "./commands/snapshot.js";
 import { clickCommand } from "./commands/click.js";
 import { fillCommand } from "./commands/fill.js";
 import { daemonCommand, stopCommand, statusCommand } from "./commands/daemon.js";
+import { reloadCommand } from "./commands/reload.js";
 
 const VERSION = "0.0.1";
 
@@ -38,6 +39,7 @@ bb-browser - AI Agent 浏览器自动化工具
   start             前台启动 Daemon（daemon 的别名）
   stop              停止 Daemon
   status            查看 Daemon 状态
+  reload            重载扩展（需要 CDP 模式）
 
 选项：
   --json          以 JSON 格式输出
@@ -183,6 +185,11 @@ async function main(): Promise<void> {
 
       case "status": {
         await statusCommand({ json: parsed.flags.json });
+        break;
+      }
+
+      case "reload": {
+        await reloadCommand({ json: parsed.flags.json });
         break;
       }
 

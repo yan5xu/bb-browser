@@ -10,4 +10,7 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
+  // ws 使用 Node.js 内置模块，需要标记为外部依赖
+  external: ["ws"],
+  noExternal: [],
 });
