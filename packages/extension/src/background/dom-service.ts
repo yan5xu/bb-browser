@@ -709,6 +709,55 @@ export async function fillElement(tabId: number, ref: string, text: string): Pro
 }
 
 /**
+ * 获取元素文本内容
+ * @param tabId 目标标签页 ID
+ * @param ref 元素 ref ID（如 "@5" 或 "5"）
+ * @returns 元素的文本内容
+ */
+export async function getElementText(tabId: number, ref: string): Promise<string> {
+  const refInfo = getRefInfo(ref);
+  if (!refInfo) {
+    throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
+  }
+
+  const { xpath } = refInfo;
+
+  // 使用 chrome.scripting.executeScript 注入获取文本的代码
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (elementXpath: string) => {
+      // 通过 XPath 定位元素
+      const result = document.evaluate(
+        elementXpath,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      );
+      const element = result.singleNodeValue as HTMLElement | null;
+
+      if (!element) {
+        return { success: false, error: 'Element not found by xpath' };
+      }
+
+      // 获取文本内容
+      const text = element.textContent || '';
+
+      return { success: true, text: text.trim() };
+    },
+    args: [xpath],
+  });
+
+  const result = results[0]?.result as { success: boolean; text?: string; error?: string } | undefined;
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to get element text');
+  }
+
+  console.log('[DOMService] Got element text:', { ref, textLength: result.text?.length });
+  return result.text || '';
+}
+
+/**
  * 移除页面上的高亮元素
  */
 export async function removeHighlights(tabId: number): Promise<void> {

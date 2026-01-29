@@ -20,6 +20,7 @@ import { snapshotCommand } from "./commands/snapshot.js";
 import { clickCommand } from "./commands/click.js";
 import { fillCommand } from "./commands/fill.js";
 import { closeCommand } from "./commands/close.js";
+import { getCommand, type GetAttribute } from "./commands/get.js";
 import { daemonCommand, stopCommand, statusCommand } from "./commands/daemon.js";
 import { reloadCommand } from "./commands/reload.js";
 
@@ -37,6 +38,9 @@ bb-browser - AI Agent 浏览器自动化工具
   click <ref>       点击元素（ref 如 @5 或 5）
   fill <ref> <text> 填充输入框
   close             关闭当前标签页
+  get text <ref>    获取元素文本
+  get url           获取当前页面 URL
+  get title         获取页面标题
   daemon            前台启动 Daemon
   start             前台启动 Daemon（daemon 的别名）
   stop              停止 Daemon
@@ -54,6 +58,8 @@ bb-browser - AI Agent 浏览器自动化工具
   bb-browser snapshot --json
   bb-browser click @5
   bb-browser fill @3 "hello world"
+  bb-browser get text @5
+  bb-browser get url
   bb-browser daemon
   bb-browser stop
 `.trim();
@@ -171,6 +177,25 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await fillCommand(ref, text, { json: parsed.flags.json });
+        break;
+      }
+
+      case "get": {
+        const attribute = parsed.args[0] as GetAttribute | undefined;
+        if (!attribute) {
+          console.error("错误：缺少属性参数");
+          console.error("用法：bb-browser get <text|url|title> [ref]");
+          console.error("示例：bb-browser get text @5");
+          console.error("      bb-browser get url");
+          process.exit(1);
+        }
+        if (!["text", "url", "title"].includes(attribute)) {
+          console.error(`错误：未知属性 "${attribute}"`);
+          console.error("支持的属性：text, url, title");
+          process.exit(1);
+        }
+        const ref = parsed.args[1];
+        await getCommand(attribute, ref, { json: parsed.flags.json });
         break;
       }
 

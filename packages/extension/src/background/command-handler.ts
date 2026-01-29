@@ -5,7 +5,7 @@
 
 import { sendResult, CommandResult } from './api-client';
 import { CommandEvent } from './sse-client';
-import { getSnapshot, clickElement, fillElement } from './dom-service';
+import { getSnapshot, clickElement, fillElement, getElementText } from './dom-service';
 
 /**
  * 处理收到的命令
@@ -35,6 +35,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
 
       case 'close':
         result = await handleClose(command);
+        break;
+
+      case 'get':
+        result = await handleGet(command);
         break;
 
       default:
@@ -289,6 +293,83 @@ async function handleClose(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Close failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 get 命令 - 获取页面或元素信息
+ */
+async function handleGet(command: CommandEvent): Promise<CommandResult> {
+  const attribute = command.attribute as string;
+
+  if (!attribute) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing attribute parameter',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  console.log('[CommandHandler] Getting:', attribute);
+
+  try {
+    let value: string;
+
+    switch (attribute) {
+      case 'url':
+        value = activeTab.url || '';
+        break;
+
+      case 'title':
+        value = activeTab.title || '';
+        break;
+
+      case 'text': {
+        const ref = command.ref as string;
+        if (!ref) {
+          return {
+            id: command.id,
+            success: false,
+            error: 'Missing ref parameter for get text',
+          };
+        }
+        value = await getElementText(activeTab.id, ref);
+        break;
+      }
+
+      default:
+        return {
+          id: command.id,
+          success: false,
+          error: `Unknown attribute: ${attribute}`,
+        };
+    }
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        value,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Get failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Get failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
