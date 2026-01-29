@@ -33,6 +33,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
         result = await handleFill(command);
         break;
 
+      case 'screenshot':
+        result = await handleScreenshot(command);
+        break;
+
       default:
         result = {
           id: command.id,
@@ -242,6 +246,46 @@ async function handleFill(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Fill failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 screenshot 命令 - 截取当前页面
+ */
+async function handleScreenshot(command: CommandEvent): Promise<CommandResult> {
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id || !activeTab.windowId) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  console.log('[CommandHandler] Taking screenshot of tab:', activeTab.id, activeTab.url);
+
+  try {
+    // 使用 chrome.tabs.captureVisibleTab 截图
+    const dataUrl = await chrome.tabs.captureVisibleTab(activeTab.windowId, { format: 'png' });
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        dataUrl,
+        title: activeTab.title || '',
+        url: activeTab.url || '',
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Screenshot failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Screenshot failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
