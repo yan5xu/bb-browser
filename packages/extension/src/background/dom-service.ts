@@ -709,6 +709,56 @@ export async function fillElement(tabId: number, ref: string, text: string): Pro
 }
 
 /**
+ * 等待元素出现
+ * @param tabId 目标标签页 ID
+ * @param ref 元素 ref ID（如 "@5" 或 "5"）
+ * @param maxWait 最大等待时间（毫秒），默认 10 秒
+ * @param interval 轮询间隔（毫秒），默认 200ms
+ */
+export async function waitForElement(
+  tabId: number,
+  ref: string,
+  maxWait = 10000,
+  interval = 200
+): Promise<void> {
+  const refInfo = getRefInfo(ref);
+  if (!refInfo) {
+    throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
+  }
+
+  const { xpath } = refInfo;
+  let elapsed = 0;
+
+  while (elapsed < maxWait) {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (elementXpath: string) => {
+        const result = document.evaluate(
+          elementXpath,
+          document,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
+        return result.singleNodeValue !== null;
+      },
+      args: [xpath],
+    });
+
+    const found = results[0]?.result;
+    if (found) {
+      console.log('[DOMService] Element found:', { ref, elapsed });
+      return;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, interval));
+    elapsed += interval;
+  }
+
+  throw new Error(`Timeout waiting for element @${ref} after ${maxWait}ms`);
+}
+
+/**
  * 移除页面上的高亮元素
  */
 export async function removeHighlights(tabId: number): Promise<void> {

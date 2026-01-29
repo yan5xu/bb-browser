@@ -19,6 +19,7 @@ import { openCommand } from "./commands/open.js";
 import { snapshotCommand } from "./commands/snapshot.js";
 import { clickCommand } from "./commands/click.js";
 import { fillCommand } from "./commands/fill.js";
+import { waitCommand } from "./commands/wait.js";
 import { daemonCommand, stopCommand, statusCommand } from "./commands/daemon.js";
 import { reloadCommand } from "./commands/reload.js";
 
@@ -35,6 +36,7 @@ bb-browser - AI Agent 浏览器自动化工具
   snapshot          获取当前页面快照（默认完整树）
   click <ref>       点击元素（ref 如 @5 或 5）
   fill <ref> <text> 填充输入框
+  wait <ms|@ref>    等待指定毫秒或元素出现
   daemon            前台启动 Daemon
   start             前台启动 Daemon（daemon 的别名）
   stop              停止 Daemon
@@ -52,6 +54,8 @@ bb-browser - AI Agent 浏览器自动化工具
   bb-browser snapshot --json
   bb-browser click @5
   bb-browser fill @3 "hello world"
+  bb-browser wait 2000
+  bb-browser wait @5
   bb-browser daemon
   bb-browser stop
 `.trim();
@@ -190,6 +194,19 @@ async function main(): Promise<void> {
 
       case "reload": {
         await reloadCommand({ json: parsed.flags.json });
+        break;
+      }
+
+      case "wait": {
+        const target = parsed.args[0];
+        if (!target) {
+          console.error("错误：缺少等待目标参数");
+          console.error("用法：bb-browser wait <ms|@ref>");
+          console.error("示例：bb-browser wait 2000");
+          console.error("      bb-browser wait @5");
+          process.exit(1);
+        }
+        await waitCommand(target, { json: parsed.flags.json });
         break;
       }
 
