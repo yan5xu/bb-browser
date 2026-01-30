@@ -22,7 +22,9 @@ export type ActionType =
   | "back"
   | "forward"
   | "refresh"
-  | "eval";
+  | "eval"
+  | "frame"
+  | "frame_main";
 
 /** 请求类型 */
 export interface Request {
@@ -46,6 +48,8 @@ export interface Request {
   script?: string;
   /** 选项值（select 命令使用） */
   value?: string;
+  /** CSS 选择器（frame 命令使用，定位 iframe） */
+  selector?: string;
 }
 
 /** 元素引用信息 */
@@ -84,6 +88,17 @@ export interface ResponseData {
   screenshotPath?: string;
   /** eval 执行结果 */
   result?: unknown;
+  /** Frame 信息（frame 命令返回） */
+  frameInfo?: {
+    /** iframe 的 CSS 选择器 */
+    selector?: string;
+    /** iframe 的 name 属性 */
+    name?: string;
+    /** iframe 的 URL */
+    url?: string;
+    /** frame ID */
+    frameId?: number;
+  };
 }
 
 /** 响应类型 */

@@ -397,9 +397,11 @@ function convertToAccessibilityTree(result: BuildDomTreeResult): SnapshotResult 
  */
 async function injectBuildDomTreeScript(tabId: number): Promise<void> {
   try {
+    const target = getFrameTarget(tabId);
+    
     // 检查脚本是否已注入
     const checkResults = await chrome.scripting.executeScript({
-      target: { tabId },
+      target,
       func: () => Object.prototype.hasOwnProperty.call(window, 'buildDomTree'),
     });
     
@@ -410,7 +412,7 @@ async function injectBuildDomTreeScript(tabId: number): Promise<void> {
     
     // 注入脚本
     await chrome.scripting.executeScript({
-      target: { tabId },
+      target,
       files: ['buildDomTree.js'],
     });
   } catch (error) {
@@ -423,8 +425,10 @@ async function injectBuildDomTreeScript(tabId: number): Promise<void> {
  * 执行 buildDomTree 并获取 DOM 快照
  */
 async function executeBuildDomTree(tabId: number): Promise<BuildDomTreeResult> {
+  const target = getFrameTarget(tabId);
+  
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (args: BuildDomTreeArgs) => {
       return (window as unknown as { buildDomTree: (args: BuildDomTreeArgs) => BuildDomTreeResult | null }).buildDomTree(args);
     },
@@ -579,6 +583,31 @@ export async function getSnapshot(tabId: number, options: SnapshotOptions = {}):
 let lastSnapshotRefs: Record<string, RefInfo> = {};
 
 /**
+ * 当前活动 Frame 的状态
+ * null 表示主 frame (frameId = 0)，数字表示子 frame 的 frameId
+ */
+let activeFrameId: number | null = null;
+
+/**
+ * 设置活动 frame
+ */
+export function setActiveFrameId(frameId: number | null): void {
+  activeFrameId = frameId;
+  console.log('[DOMService] Active frame changed:', frameId ?? 0);
+}
+
+/**
+ * 获取当前活动 frame 的 target
+ * 用于 chrome.scripting.executeScript
+ */
+function getFrameTarget(tabId: number): { tabId: number; frameIds?: number[] } {
+  if (activeFrameId !== null) {
+    return { tabId, frameIds: [activeFrameId] };
+  }
+  return { tabId };
+}
+
+/**
  * 获取 ref 对应的信息
  */
 export function getRefInfo(ref: string): RefInfo | null {
@@ -600,10 +629,11 @@ export async function clickElement(tabId: number, ref: string): Promise<{ role: 
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入点击代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -652,10 +682,11 @@ export async function hoverElement(tabId: number, ref: string): Promise<{ role: 
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入悬停代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -706,10 +737,11 @@ export async function fillElement(tabId: number, ref: string, text: string): Pro
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入填充代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string, inputText: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -775,10 +807,11 @@ export async function typeElement(tabId: number, ref: string, text: string): Pro
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入逐字符输入代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string, inputText: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -883,10 +916,11 @@ export async function selectOption(
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入选择代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string, selectValue: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -1007,10 +1041,11 @@ export async function getElementText(tabId: number, ref: string): Promise<string
   }
 
   const { xpath } = refInfo;
+  const target = getFrameTarget(tabId);
 
   // 使用 chrome.scripting.executeScript 注入获取文本的代码
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string) => {
       // 通过 XPath 定位元素
       const result = document.evaluate(
@@ -1062,11 +1097,12 @@ export async function waitForElement(
   }
 
   const { xpath } = refInfo;
+  const target = getFrameTarget(tabId);
   let elapsed = 0;
 
   while (elapsed < maxWait) {
     const results = await chrome.scripting.executeScript({
-      target: { tabId },
+      target,
       func: (elementXpath: string) => {
         const result = document.evaluate(
           elementXpath,
@@ -1106,9 +1142,10 @@ export async function checkElement(tabId: number, ref: string): Promise<{ role: 
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string) => {
       const result = document.evaluate(
         elementXpath,
@@ -1170,9 +1207,10 @@ export async function uncheckElement(tabId: number, ref: string): Promise<{ role
   }
 
   const { xpath, role, name } = refInfo;
+  const target = getFrameTarget(tabId);
 
   const results = await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (elementXpath: string) => {
       const result = document.evaluate(
         elementXpath,

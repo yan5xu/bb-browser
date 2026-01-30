@@ -5,7 +5,14 @@
 
 import { sendResult, CommandResult } from './api-client';
 import { CommandEvent } from './sse-client';
-import { getSnapshot, clickElement, hoverElement, fillElement, typeElement, getElementText, waitForElement, checkElement, uncheckElement, selectOption } from './dom-service';
+import { getSnapshot, clickElement, hoverElement, fillElement, typeElement, getElementText, waitForElement, checkElement, uncheckElement, selectOption, setActiveFrameId } from './dom-service';
+
+/**
+ * 当前活动 Frame 的 frameId
+ * null 表示主 frame，数字表示子 frame 的 frameId
+ * 用于 handleFrame 内部逻辑，DOM 操作使用 dom-service 的 activeFrameId
+ */
+let activeFrameId: number | null = null;
 
 /**
  * 处理收到的命令
@@ -91,6 +98,14 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
 
       case 'select':
         result = await handleSelect(command);
+        break;
+
+      case 'frame':
+        result = await handleFrame(command);
+        break;
+
+      case 'frame_main':
+        result = await handleFrameMain(command);
         break;
 
       default:
@@ -1149,6 +1164,196 @@ async function handleEval(command: CommandEvent): Promise<CommandResult> {
       error: `Eval failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+/**
+ * 处理 frame 命令 - 切换到指定 iframe
+ */
+async function handleFrame(command: CommandEvent): Promise<CommandResult> {
+  const selector = command.selector as string;
+
+  if (!selector) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing selector parameter',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  const tabId = activeTab.id;
+
+  console.log('[CommandHandler] Switching to frame:', selector);
+
+  try {
+    // 1. 在页面中找到 iframe 元素并获取其信息
+    const iframeInfoResults = await chrome.scripting.executeScript({
+      target: { tabId, frameIds: activeFrameId !== null ? [activeFrameId] : [0] },
+      func: (sel: string) => {
+        const iframe = document.querySelector(sel) as HTMLIFrameElement | null;
+        if (!iframe) {
+          return { found: false, error: `找不到 iframe: ${sel}` };
+        }
+        if (iframe.tagName.toLowerCase() !== 'iframe' && iframe.tagName.toLowerCase() !== 'frame') {
+          return { found: false, error: `元素不是 iframe: ${iframe.tagName}` };
+        }
+        return {
+          found: true,
+          name: iframe.name || '',
+          src: iframe.src || '',
+          // 获取 iframe 在页面中的位置用于匹配
+          rect: iframe.getBoundingClientRect(),
+        };
+      },
+      args: [selector],
+    });
+
+    const iframeInfo = iframeInfoResults[0]?.result as {
+      found: boolean;
+      error?: string;
+      name?: string;
+      src?: string;
+      rect?: DOMRect;
+    };
+
+    if (!iframeInfo || !iframeInfo.found) {
+      return {
+        id: command.id,
+        success: false,
+        error: iframeInfo?.error || `找不到 iframe: ${selector}`,
+      };
+    }
+
+    // 2. 获取所有 frames
+    const frames = await chrome.webNavigation.getAllFrames({ tabId });
+
+    if (!frames || frames.length === 0) {
+      return {
+        id: command.id,
+        success: false,
+        error: '无法获取页面 frames',
+      };
+    }
+
+    // 3. 尝试通过 URL 或 name 匹配 frameId
+    let targetFrameId: number | null = null;
+
+    // 首先尝试通过 src URL 匹配
+    if (iframeInfo.src) {
+      const matchedFrame = frames.find(f => 
+        f.url === iframeInfo.src || 
+        f.url.includes(iframeInfo.src!) ||
+        iframeInfo.src!.includes(f.url)
+      );
+      if (matchedFrame) {
+        targetFrameId = matchedFrame.frameId;
+      }
+    }
+
+    // 如果没有匹配到，尝试通过非主 frame 排除
+    if (targetFrameId === null) {
+      // 获取非主 frame 的列表（排除 frameId 为 0 的主 frame）
+      const childFrames = frames.filter(f => f.frameId !== 0);
+      
+      if (childFrames.length === 1) {
+        // 只有一个子 frame，直接使用它
+        targetFrameId = childFrames[0].frameId;
+      } else if (childFrames.length > 1) {
+        // 多个子 frame，尝试用 name 匹配
+        if (iframeInfo.name) {
+          // 目前无法直接通过 name 匹配，需要更复杂的逻辑
+          // 暂时使用第一个匹配 URL 的 frame
+          console.log('[CommandHandler] Multiple frames found, using URL matching');
+        }
+        
+        // 如果还是没找到，返回错误
+        if (targetFrameId === null) {
+          return {
+            id: command.id,
+            success: false,
+            error: `找到多个子 frame，无法确定目标。请使用更精确的 selector 或确保 iframe 有 src 属性。`,
+          };
+        }
+      } else {
+        return {
+          id: command.id,
+          success: false,
+          error: '页面中没有子 frame',
+        };
+      }
+    }
+
+    // 4. 验证 frameId 是否有效（尝试在该 frame 中执行脚本）
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId, frameIds: [targetFrameId] },
+        func: () => true,
+      });
+    } catch (e) {
+      return {
+        id: command.id,
+        success: false,
+        error: `无法访问 frame (frameId: ${targetFrameId})，可能是跨域 iframe`,
+      };
+    }
+
+    // 5. 保存 activeFrameId 并同步到 dom-service
+    activeFrameId = targetFrameId;
+    setActiveFrameId(targetFrameId);
+
+    const matchedFrameInfo = frames.find(f => f.frameId === targetFrameId);
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        frameInfo: {
+          selector,
+          name: iframeInfo.name,
+          url: matchedFrameInfo?.url || iframeInfo.src,
+          frameId: targetFrameId,
+        },
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Frame switch failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Frame switch failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 frame_main 命令 - 返回主 frame
+ */
+async function handleFrameMain(command: CommandEvent): Promise<CommandResult> {
+  console.log('[CommandHandler] Switching to main frame');
+
+  // 重置 activeFrameId 并同步到 dom-service
+  activeFrameId = null;
+  setActiveFrameId(null);
+
+  return {
+    id: command.id,
+    success: true,
+    data: {
+      frameInfo: {
+        frameId: 0,
+      },
+    },
+  };
 }
 
 /**

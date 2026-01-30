@@ -33,6 +33,7 @@ import { backCommand, forwardCommand, refreshCommand } from "./commands/nav.js";
 import { checkCommand, uncheckCommand } from "./commands/check.js";
 import { selectCommand } from "./commands/select.js";
 import { evalCommand } from "./commands/eval.js";
+import { frameCommand, frameMainCommand } from "./commands/frame.js";
 
 const VERSION = "0.0.1";
 
@@ -69,6 +70,8 @@ bb-browser - AI Agent 浏览器自动化工具
   back              后退
   forward           前进
   refresh           刷新页面
+  frame <selector>  切换到指定 iframe
+  frame main        返回主 frame
 
 选项：
   --json          以 JSON 格式输出
@@ -395,6 +398,23 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await scrollCommand(direction, pixels, { json: parsed.flags.json });
+        break;
+      }
+
+      case "frame": {
+        const selectorOrMain = parsed.args[0];
+        if (!selectorOrMain) {
+          console.error("错误：缺少 selector 参数");
+          console.error("用法：bb-browser frame <selector>");
+          console.error('示例：bb-browser frame "iframe#editor"');
+          console.error("      bb-browser frame main");
+          process.exit(1);
+        }
+        if (selectorOrMain === "main") {
+          await frameMainCommand({ json: parsed.flags.json });
+        } else {
+          await frameCommand(selectorOrMain, { json: parsed.flags.json });
+        }
         break;
       }
 
