@@ -1146,28 +1146,42 @@ async function handleEval(command: CommandEvent): Promise<CommandResult> {
 
   console.log('[CommandHandler] Evaluating script:', script.substring(0, 100));
 
-  try {
-    // 使用 chrome.scripting.executeScript 执行用户脚本
-    // 注意：需要指定 world: 'MAIN' 才能访问页面的 document 等全局对象
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      world: 'MAIN', // 在主页面上下文中执行，可访问 document, window 等
-      func: (code: string) => {
-        // 直接使用 eval 执行代码
-        // 返回值必须是可序列化的
-        try {
-          return eval(code);
-        } catch (e) {
-          // 如果直接 eval 失败（比如语句而非表达式），尝试用 Function
-          const fn = new Function(code);
-          return fn();
-        }
-      },
-      args: [script],
-    });
+  const tabId = activeTab.id;
 
-    // 获取执行结果
-    const result = results[0]?.result;
+  try {
+    // 使用 chrome.debugger API 的 Runtime.evaluate 来执行任意 JavaScript
+    // 这绕过了 MV3 的 CSP 限制（禁止 eval）
+    await ensureDebuggerAttached(tabId);
+
+    // 使用 CDP 的 Runtime.evaluate
+    const evalResult = await chrome.debugger.sendCommand(
+      { tabId },
+      'Runtime.evaluate',
+      {
+        expression: script,
+        returnByValue: true,  // 返回实际值而不是远程对象引用
+        awaitPromise: true,   // 如果是 Promise，等待它完成
+      }
+    ) as {
+      result?: { type: string; value?: unknown; description?: string };
+      exceptionDetails?: { exception?: { description?: string }; text?: string };
+    };
+
+    console.log('[CommandHandler] Eval result:', JSON.stringify(evalResult));
+
+    // 检查是否有异常
+    if (evalResult.exceptionDetails) {
+      const errorMsg = evalResult.exceptionDetails.exception?.description 
+        || evalResult.exceptionDetails.text 
+        || 'Unknown error';
+      return {
+        id: command.id,
+        success: false,
+        error: `Eval error: ${errorMsg}`,
+      };
+    }
+
+    const result = evalResult.result?.value;
 
     return {
       id: command.id,
