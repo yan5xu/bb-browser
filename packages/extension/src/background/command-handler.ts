@@ -93,6 +93,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
         result = await handleSelect(command);
         break;
 
+      case 'dialog':
+        result = await handleDialog(command);
+        break;
+
       default:
         result = {
           id: command.id,
@@ -1147,6 +1151,169 @@ async function handleEval(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Eval failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * Dialog 状态管理
+ * 存储每个 tab 的待处理 dialog 信息
+ */
+interface PendingDialog {
+  url: string;
+  message: string;
+  type: 'alert' | 'confirm' | 'prompt' | 'beforeunload';
+  defaultPrompt?: string;
+  hasBrowserHandler: boolean;
+}
+
+// 每个 tab 的待处理 dialog
+const pendingDialogs: Map<number, PendingDialog> = new Map();
+
+// 已 attach debugger 的 tab
+const debuggerAttachedTabs: Set<number> = new Set();
+
+/**
+ * 处理 debugger 事件
+ */
+function onDebuggerEvent(
+  source: chrome.debugger.Debuggee,
+  method: string,
+  params?: object
+): void {
+  if (method === 'Page.javascriptDialogOpening' && source.tabId) {
+    const dialogParams = params as {
+      url: string;
+      message: string;
+      type: 'alert' | 'confirm' | 'prompt' | 'beforeunload';
+      defaultPrompt?: string;
+      hasBrowserHandler: boolean;
+    };
+    console.log('[CommandHandler] Dialog opened:', dialogParams);
+    pendingDialogs.set(source.tabId, dialogParams);
+  } else if (method === 'Page.javascriptDialogClosed' && source.tabId) {
+    console.log('[CommandHandler] Dialog closed');
+    pendingDialogs.delete(source.tabId);
+  }
+}
+
+// 注册全局 debugger 事件监听器
+chrome.debugger.onEvent.addListener(onDebuggerEvent);
+
+// 当 tab 关闭时清理状态
+chrome.tabs.onRemoved.addListener((tabId) => {
+  pendingDialogs.delete(tabId);
+  if (debuggerAttachedTabs.has(tabId)) {
+    debuggerAttachedTabs.delete(tabId);
+  }
+});
+
+// 当 debugger 被 detach 时清理状态
+chrome.debugger.onDetach.addListener((source) => {
+  if (source.tabId) {
+    debuggerAttachedTabs.delete(source.tabId);
+    pendingDialogs.delete(source.tabId);
+  }
+});
+
+/**
+ * 确保 debugger 已附加到 tab
+ */
+async function ensureDebuggerAttached(tabId: number): Promise<void> {
+  if (debuggerAttachedTabs.has(tabId)) {
+    return;
+  }
+
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3');
+    debuggerAttachedTabs.add(tabId);
+    
+    // 启用 Page 域以接收 dialog 事件
+    await chrome.debugger.sendCommand({ tabId }, 'Page.enable');
+    console.log('[CommandHandler] Debugger attached to tab:', tabId);
+  } catch (error) {
+    // 如果已经 attached，忽略错误
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes('Another debugger is already attached')) {
+      throw error;
+    }
+    debuggerAttachedTabs.add(tabId);
+  }
+}
+
+/**
+ * 处理 dialog 命令 - 接受或拒绝对话框
+ */
+async function handleDialog(command: CommandEvent): Promise<CommandResult> {
+  const dialogResponse = command.dialogResponse as 'accept' | 'dismiss';
+  const promptText = command.promptText as string | undefined;
+
+  if (!dialogResponse || !['accept', 'dismiss'].includes(dialogResponse)) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing or invalid dialogResponse parameter (accept/dismiss)',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  const tabId = activeTab.id;
+
+  console.log('[CommandHandler] Handling dialog:', dialogResponse, 'promptText:', promptText);
+
+  try {
+    // 确保 debugger 已附加
+    await ensureDebuggerAttached(tabId);
+
+    // 检查是否有待处理的 dialog
+    const pendingDialog = pendingDialogs.get(tabId);
+
+    if (!pendingDialog) {
+      return {
+        id: command.id,
+        success: false,
+        error: '没有待处理的对话框',
+      };
+    }
+
+    // 处理 dialog
+    await chrome.debugger.sendCommand({ tabId }, 'Page.handleJavaScriptDialog', {
+      accept: dialogResponse === 'accept',
+      promptText: dialogResponse === 'accept' ? promptText : undefined,
+    });
+
+    // 获取 dialog 信息后清理
+    const dialogInfo = {
+      type: pendingDialog.type,
+      message: pendingDialog.message,
+      handled: true,
+    };
+
+    pendingDialogs.delete(tabId);
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        dialogInfo,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Dialog handling failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Dialog failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

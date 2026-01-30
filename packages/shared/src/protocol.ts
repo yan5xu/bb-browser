@@ -22,7 +22,8 @@ export type ActionType =
   | "back"
   | "forward"
   | "refresh"
-  | "eval";
+  | "eval"
+  | "dialog";
 
 /** 请求类型 */
 export interface Request {
@@ -46,6 +47,10 @@ export interface Request {
   script?: string;
   /** 选项值（select 命令使用） */
   value?: string;
+  /** dialog 响应类型（dialog 命令使用） */
+  dialogResponse?: "accept" | "dismiss";
+  /** prompt 对话框的输入文本（dialog accept 时可选） */
+  promptText?: string;
 }
 
 /** 元素引用信息 */
@@ -84,6 +89,15 @@ export interface ResponseData {
   screenshotPath?: string;
   /** eval 执行结果 */
   result?: unknown;
+  /** dialog 信息（dialog 命令返回） */
+  dialogInfo?: {
+    /** 对话框类型：alert, confirm, prompt, beforeunload */
+    type: string;
+    /** 对话框消息 */
+    message: string;
+    /** 是否成功处理 */
+    handled: boolean;
+  };
 }
 
 /** 响应类型 */
