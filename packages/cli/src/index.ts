@@ -50,7 +50,7 @@ bb-browser - AI Agent 浏览器自动化工具
   bb-browser <command> [options]
 
 命令：
-  open <url>        打开指定 URL
+  open <url> [--tab] 打开指定 URL（默认新 tab，--tab current 当前 tab）
   snapshot          获取当前页面快照（默认完整树）
   click <ref>       点击元素（ref 如 @5 或 5）
   hover <ref>       悬停在元素上
@@ -189,10 +189,13 @@ async function main(): Promise<void> {
         const url = parsed.args[0];
         if (!url) {
           console.error("错误：缺少 URL 参数");
-          console.error("用法：bb-browser open <url>");
+          console.error("用法：bb-browser open <url> [--tab current|<tabId>]");
           process.exit(1);
         }
-        await openCommand(url, { json: parsed.flags.json });
+        // 解析 --tab 参数
+        const tabIndex = process.argv.findIndex(a => a === "--tab");
+        const tab = tabIndex >= 0 ? process.argv[tabIndex + 1] : undefined;
+        await openCommand(url, { json: parsed.flags.json, tab });
         break;
       }
 

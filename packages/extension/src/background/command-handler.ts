@@ -170,10 +170,18 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
 }
 
 /**
- * 处理 open 命令 - 打开新标签页
+ * 处理 open 命令 - 打开 URL
+ * 
+ * 参数：
+ *   - url: 要打开的 URL
+ *   - tabId: 可选，指定在哪个 tab 中打开
+ *     - undefined: 创建新 tab（默认，并发安全）
+ *     - "current": 在当前活动 tab 中导航
+ *     - number: 在指定 tabId 的 tab 中导航
  */
 async function handleOpen(command: CommandEvent): Promise<CommandResult> {
   const url = command.url as string;
+  const tabIdParam = command.tabId as string | number | undefined;
 
   if (!url) {
     return {
@@ -183,19 +191,44 @@ async function handleOpen(command: CommandEvent): Promise<CommandResult> {
     };
   }
 
-  console.log('[CommandHandler] Opening URL:', url);
+  console.log('[CommandHandler] Opening URL:', url, 'tabId:', tabIdParam);
 
-  // 尝试在当前活动标签页导航（保持历史记录，支持 back/forward）
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  
   let tab: chrome.tabs.Tab;
-  
-  if (activeTab && activeTab.id) {
-    // 在当前标签页导航
-    tab = await chrome.tabs.update(activeTab.id, { url });
-  } else {
-    // 没有活动标签页，创建新的
+
+  if (tabIdParam === undefined) {
+    // 默认行为：创建新 tab（并发安全）
     tab = await chrome.tabs.create({ url, active: true });
+  } else if (tabIdParam === "current") {
+    // 在当前活动 tab 中导航
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (activeTab && activeTab.id) {
+      tab = await chrome.tabs.update(activeTab.id, { url });
+    } else {
+      // 没有活动 tab，创建新的
+      tab = await chrome.tabs.create({ url, active: true });
+    }
+  } else {
+    // 在指定 tabId 的 tab 中导航
+    const targetTabId = typeof tabIdParam === 'number' ? tabIdParam : parseInt(String(tabIdParam), 10);
+    
+    if (isNaN(targetTabId)) {
+      return {
+        id: command.id,
+        success: false,
+        error: `Invalid tabId: ${tabIdParam}`,
+      };
+    }
+
+    try {
+      tab = await chrome.tabs.update(targetTabId, { url, active: true });
+    } catch (error) {
+      return {
+        id: command.id,
+        success: false,
+        error: `Tab ${targetTabId} not found or cannot be updated`,
+      };
+    }
   }
 
   // 等待页面加载完成
