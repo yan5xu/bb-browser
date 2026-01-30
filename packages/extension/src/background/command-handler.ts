@@ -73,6 +73,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
         result = await handleRefresh(command);
         break;
 
+      case 'eval':
+        result = await handleEval(command);
+        break;
+
       default:
         result = {
           id: command.id,
@@ -835,6 +839,76 @@ async function handleRefresh(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Refresh failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 eval 命令 - 在页面执行 JavaScript
+ */
+async function handleEval(command: CommandEvent): Promise<CommandResult> {
+  const script = command.script as string;
+
+  if (!script) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing script parameter',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  // 检查是否是特殊页面
+  const url = activeTab.url || '';
+  if (url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('chrome-extension://')) {
+    return {
+      id: command.id,
+      success: false,
+      error: `Cannot execute script on restricted page: ${url}`,
+    };
+  }
+
+  console.log('[CommandHandler] Evaluating script:', script.substring(0, 100));
+
+  try {
+    // 使用 chrome.scripting.executeScript 执行用户脚本
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: (code: string) => {
+        // 使用 Function 构造器执行任意 JavaScript
+        // 返回值必须是可序列化的
+        const fn = new Function(`return (${code})`);
+        return fn();
+      },
+      args: [script],
+    });
+
+    // 获取执行结果
+    const result = results[0]?.result;
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        result,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Eval failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Eval failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

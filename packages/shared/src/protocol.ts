@@ -10,7 +10,8 @@ export type ActionType =
   | "fill"
   | "get"
   | "screenshot"
-  | "close";
+  | "close"
+  | "eval";
 
 /** 请求类型 */
 export interface Request {
@@ -30,6 +31,8 @@ export interface Request {
   path?: string;
   /** 是否只输出可交互元素（snapshot 命令使用） */
   interactive?: boolean;
+  /** JavaScript 代码（eval 命令使用） */
+  script?: string;
 }
 
 /** 元素引用信息 */
@@ -66,6 +69,8 @@ export interface ResponseData {
   value?: string;
   /** 截图路径（screenshot 操作返回） */
   screenshotPath?: string;
+  /** eval 执行结果 */
+  result?: unknown;
 }
 
 /** 响应类型 */
