@@ -861,6 +861,134 @@ export async function waitForElement(
 }
 
 /**
+ * 勾选复选框
+ * @param tabId 目标标签页 ID
+ * @param ref 元素 ref ID（如 "@5" 或 "5"）
+ * @returns 被勾选元素的 role、name 和是否之前已勾选
+ */
+export async function checkElement(tabId: number, ref: string): Promise<{ role: string; name?: string; wasAlreadyChecked: boolean }> {
+  const refInfo = getRefInfo(ref);
+  if (!refInfo) {
+    throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
+  }
+
+  const { xpath, role, name } = refInfo;
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (elementXpath: string) => {
+      const result = document.evaluate(
+        elementXpath,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      );
+      const element = result.singleNodeValue as HTMLElement | null;
+
+      if (!element) {
+        return { success: false, error: 'Element not found by xpath' };
+      }
+
+      // 验证元素类型
+      if (!(element instanceof HTMLInputElement)) {
+        return { success: false, error: 'Element is not an input element' };
+      }
+
+      const inputType = element.type.toLowerCase();
+      if (inputType !== 'checkbox' && inputType !== 'radio') {
+        return { success: false, error: `Element is not a checkbox or radio (type: ${inputType})` };
+      }
+
+      // 检查是否已勾选
+      const wasAlreadyChecked = element.checked;
+
+      // 如果未勾选，则勾选
+      if (!wasAlreadyChecked) {
+        element.checked = true;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      return { success: true, wasAlreadyChecked };
+    },
+    args: [xpath],
+  });
+
+  const result = results[0]?.result as { success: boolean; wasAlreadyChecked?: boolean; error?: string } | undefined;
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to check element');
+  }
+
+  console.log('[DOMService] Checked element:', { ref, role, name, wasAlreadyChecked: result.wasAlreadyChecked });
+  return { role, name, wasAlreadyChecked: result.wasAlreadyChecked ?? false };
+}
+
+/**
+ * 取消勾选复选框
+ * @param tabId 目标标签页 ID
+ * @param ref 元素 ref ID（如 "@5" 或 "5"）
+ * @returns 被取消勾选元素的 role、name 和是否之前未勾选
+ */
+export async function uncheckElement(tabId: number, ref: string): Promise<{ role: string; name?: string; wasAlreadyUnchecked: boolean }> {
+  const refInfo = getRefInfo(ref);
+  if (!refInfo) {
+    throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
+  }
+
+  const { xpath, role, name } = refInfo;
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (elementXpath: string) => {
+      const result = document.evaluate(
+        elementXpath,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      );
+      const element = result.singleNodeValue as HTMLElement | null;
+
+      if (!element) {
+        return { success: false, error: 'Element not found by xpath' };
+      }
+
+      // 验证元素类型
+      if (!(element instanceof HTMLInputElement)) {
+        return { success: false, error: 'Element is not an input element' };
+      }
+
+      const inputType = element.type.toLowerCase();
+      if (inputType !== 'checkbox' && inputType !== 'radio') {
+        return { success: false, error: `Element is not a checkbox or radio (type: ${inputType})` };
+      }
+
+      // 检查是否未勾选
+      const wasAlreadyUnchecked = !element.checked;
+
+      // 如果已勾选，则取消勾选
+      if (!wasAlreadyUnchecked) {
+        element.checked = false;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      return { success: true, wasAlreadyUnchecked };
+    },
+    args: [xpath],
+  });
+
+  const result = results[0]?.result as { success: boolean; wasAlreadyUnchecked?: boolean; error?: string } | undefined;
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to uncheck element');
+  }
+
+  console.log('[DOMService] Unchecked element:', { ref, role, name, wasAlreadyUnchecked: result.wasAlreadyUnchecked });
+  return { role, name, wasAlreadyUnchecked: result.wasAlreadyUnchecked ?? false };
+}
+
+/**
  * 移除页面上的高亮元素
  */
 export async function removeHighlights(tabId: number): Promise<void> {

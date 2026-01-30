@@ -5,7 +5,7 @@
 
 import { sendResult, CommandResult } from './api-client';
 import { CommandEvent } from './sse-client';
-import { getSnapshot, clickElement, hoverElement, fillElement, getElementText, waitForElement } from './dom-service';
+import { getSnapshot, clickElement, hoverElement, fillElement, getElementText, waitForElement, checkElement, uncheckElement } from './dom-service';
 
 /**
  * 处理收到的命令
@@ -35,6 +35,14 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
 
       case 'fill':
         result = await handleFill(command);
+        break;
+
+      case 'check':
+        result = await handleCheck(command);
+        break;
+
+      case 'uncheck':
+        result = await handleUncheck(command);
         break;
 
       case 'close':
@@ -330,6 +338,104 @@ async function handleFill(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Fill failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 check 命令 - 勾选复选框
+ */
+async function handleCheck(command: CommandEvent): Promise<CommandResult> {
+  const ref = command.ref as string;
+
+  if (!ref) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing ref parameter',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  console.log('[CommandHandler] Checking element:', ref);
+
+  try {
+    const elementInfo = await checkElement(activeTab.id, ref);
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        role: elementInfo.role,
+        name: elementInfo.name,
+        wasAlreadyChecked: elementInfo.wasAlreadyChecked,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Check failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Check failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 uncheck 命令 - 取消勾选复选框
+ */
+async function handleUncheck(command: CommandEvent): Promise<CommandResult> {
+  const ref = command.ref as string;
+
+  if (!ref) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing ref parameter',
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  console.log('[CommandHandler] Unchecking element:', ref);
+
+  try {
+    const elementInfo = await uncheckElement(activeTab.id, ref);
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        role: elementInfo.role,
+        name: elementInfo.name,
+        wasAlreadyUnchecked: elementInfo.wasAlreadyUnchecked,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Uncheck failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Uncheck failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
