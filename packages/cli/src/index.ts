@@ -39,6 +39,7 @@ import { dialogCommand } from "./commands/dialog.js";
 import { networkCommand } from "./commands/network.js";
 import { consoleCommand } from "./commands/console.js";
 import { errorsCommand } from "./commands/errors.js";
+import { traceCommand } from "./commands/trace.js";
 
 const VERSION = "0.0.1";
 
@@ -91,6 +92,9 @@ bb-browser - AI Agent 浏览器自动化工具
   console --clear   清空控制台
   errors            查看 JS 错误
   errors --clear    清空错误记录
+  trace start       开始录制用户操作
+  trace stop        停止录制，输出事件列表
+  trace status      查看录制状态
 
 选项：
   --json          以 JSON 格式输出
@@ -477,6 +481,20 @@ async function main(): Promise<void> {
       case "errors": {
         const clear = process.argv.includes("--clear");
         await errorsCommand({ json: parsed.flags.json, clear });
+        break;
+      }
+
+      case "trace": {
+        const subCmd = parsed.args[0] as 'start' | 'stop' | 'status' | undefined;
+        if (!subCmd || !['start', 'stop', 'status'].includes(subCmd)) {
+          console.error("错误：缺少或无效的子命令");
+          console.error("用法：bb-browser trace <start|stop|status>");
+          console.error("示例：bb-browser trace start");
+          console.error("      bb-browser trace stop");
+          console.error("      bb-browser trace status");
+          process.exit(1);
+        }
+        await traceCommand(subCmd, { json: parsed.flags.json });
         break;
       }
 

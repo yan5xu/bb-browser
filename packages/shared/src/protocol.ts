@@ -32,7 +32,8 @@ export type ActionType =
   | "dialog"
   | "network"
   | "console"
-  | "errors";
+  | "errors"
+  | "trace";
 
 /** 请求类型 */
 export interface Request {
@@ -79,6 +80,8 @@ export interface Request {
   consoleCommand?: "get" | "clear";
   /** errors 子命令：get, clear */
   errorsCommand?: "get" | "clear";
+  /** trace 子命令：start, stop, status */
+  traceCommand?: "start" | "stop" | "status";
 }
 
 /** 元素引用信息 */
@@ -147,6 +150,51 @@ export interface JSErrorInfo {
   timestamp: number;
 }
 
+/** Trace 事件类型 - 录制用户操作 */
+export interface TraceEvent {
+  /** 事件类型 */
+  type: 'click' | 'fill' | 'select' | 'check' | 'press' | 'scroll' | 'navigation';
+  /** 时间戳 */
+  timestamp: number;
+  /** 事件发生时的页面 URL */
+  url: string;
+  
+  /** 元素引用 - highlightIndex，可直接用于 @ref */
+  ref?: number;
+  /** 备用定位 - XPath */
+  xpath?: string;
+  /** CSS 选择器 */
+  cssSelector?: string;
+  
+  /** 操作参数 - fill/select 的值 */
+  value?: string;
+  /** 操作参数 - press 的按键 */
+  key?: string;
+  /** 操作参数 - scroll 方向 */
+  direction?: 'up' | 'down' | 'left' | 'right';
+  /** 操作参数 - scroll 距离 */
+  pixels?: number;
+  /** 操作参数 - check/uncheck 状态 */
+  checked?: boolean;
+  
+  /** 语义信息 - 元素角色 */
+  elementRole?: string;
+  /** 语义信息 - 元素名称 */
+  elementName?: string;
+  /** 语义信息 - 元素标签 */
+  elementTag?: string;
+}
+
+/** Trace 录制状态 */
+export interface TraceStatus {
+  /** 是否正在录制 */
+  recording: boolean;
+  /** 已录制事件数量 */
+  eventCount: number;
+  /** 录制的标签页 ID */
+  tabId?: number;
+}
+
 /** 响应数据 */
 export interface ResponseData {
   /** 页面标题 */
@@ -195,6 +243,10 @@ export interface ResponseData {
   consoleMessages?: ConsoleMessageInfo[];
   /** JS 错误列表（errors 命令返回） */
   jsErrors?: JSErrorInfo[];
+  /** Trace 事件列表（trace stop 命令返回） */
+  traceEvents?: TraceEvent[];
+  /** Trace 录制状态（trace status 命令返回） */
+  traceStatus?: TraceStatus;
 }
 
 /** 响应类型 */

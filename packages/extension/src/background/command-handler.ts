@@ -9,6 +9,7 @@ import { sendResult, CommandResult } from './api-client';
 import { CommandEvent } from './sse-client';
 import * as cdp from './cdp-service';
 import * as cdpDom from './cdp-dom-service';
+import * as traceService from './trace-service';
 
 // 初始化 CDP 事件监听器
 cdp.initEventListeners();
@@ -144,6 +145,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
 
       case 'errors':
         result = await handleErrors(command);
+        break;
+
+      case 'trace':
+        result = await handleTrace(command);
         break;
 
       default:
@@ -1927,6 +1932,97 @@ async function handleErrors(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Errors command failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 trace 命令 - 录制用户操作
+ */
+async function handleTrace(command: CommandEvent): Promise<CommandResult> {
+  const subCommand = (command.traceCommand || 'status') as string;
+
+  console.log('[CommandHandler] Trace command:', subCommand);
+
+  try {
+    switch (subCommand) {
+      case 'start': {
+        // 获取当前活动标签页
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        if (!activeTab || !activeTab.id) {
+          return {
+            id: command.id,
+            success: false,
+            error: 'No active tab found',
+          };
+        }
+
+        // 检查是否是特殊页面
+        const url = activeTab.url || '';
+        if (url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('chrome-extension://')) {
+          return {
+            id: command.id,
+            success: false,
+            error: `Cannot record on restricted page: ${url}`,
+          };
+        }
+
+        // 开始录制
+        await traceService.startRecording(activeTab.id);
+        const status = traceService.getStatus();
+
+        return {
+          id: command.id,
+          success: true,
+          data: {
+            traceStatus: status,
+          },
+        };
+      }
+
+      case 'stop': {
+        // 停止录制并获取事件
+        const events = await traceService.stopRecording();
+
+        return {
+          id: command.id,
+          success: true,
+          data: {
+            traceEvents: events,
+            traceStatus: {
+              recording: false,
+              eventCount: events.length,
+            },
+          },
+        };
+      }
+
+      case 'status': {
+        const status = traceService.getStatus();
+
+        return {
+          id: command.id,
+          success: true,
+          data: {
+            traceStatus: status,
+          },
+        };
+      }
+
+      default:
+        return {
+          id: command.id,
+          success: false,
+          error: `Unknown trace subcommand: ${subCommand}`,
+        };
+    }
+  } catch (error) {
+    console.error('[CommandHandler] Trace command failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Trace command failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
