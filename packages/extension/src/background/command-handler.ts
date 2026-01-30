@@ -162,7 +162,18 @@ async function handleOpen(command: CommandEvent): Promise<CommandResult> {
 
   console.log('[CommandHandler] Opening URL:', url);
 
-  const tab = await chrome.tabs.create({ url, active: true });
+  // 尝试在当前活动标签页导航（保持历史记录，支持 back/forward）
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  
+  let tab: chrome.tabs.Tab;
+  
+  if (activeTab && activeTab.id) {
+    // 在当前标签页导航
+    tab = await chrome.tabs.update(activeTab.id, { url });
+  } else {
+    // 没有活动标签页，创建新的
+    tab = await chrome.tabs.create({ url, active: true });
+  }
 
   // 等待页面加载完成
   await waitForTabLoad(tab.id!);
@@ -994,6 +1005,7 @@ async function handleScroll(command: CommandEvent): Promise<CommandResult> {
 
 /**
  * 处理 back 命令 - 后退
+ * 使用 CDP Page.navigateToHistoryEntry 或 history.back()
  */
 async function handleBack(command: CommandEvent): Promise<CommandResult> {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1006,12 +1018,39 @@ async function handleBack(command: CommandEvent): Promise<CommandResult> {
     };
   }
 
-  console.log('[CommandHandler] Going back in tab:', activeTab.id);
+  const tabId = activeTab.id;
+  console.log('[CommandHandler] Going back in tab:', tabId);
 
   try {
-    await chrome.tabs.goBack(activeTab.id);
-    await waitForTabLoad(activeTab.id);
-    const updatedTab = await chrome.tabs.get(activeTab.id);
+    // 使用 CDP 执行 history.back()
+    await ensureDebuggerAttached(tabId);
+    
+    // 先检查是否可以后退
+    const historyResult = await chrome.debugger.sendCommand(
+      { tabId },
+      'Runtime.evaluate',
+      { expression: 'window.history.length > 1', returnByValue: true }
+    ) as { result?: { value?: boolean } };
+    
+    if (!historyResult.result?.value) {
+      return {
+        id: command.id,
+        success: false,
+        error: 'No previous page in history',
+      };
+    }
+    
+    // 执行后退
+    await chrome.debugger.sendCommand(
+      { tabId },
+      'Runtime.evaluate',
+      { expression: 'window.history.back()' }
+    );
+    
+    // 等待页面加载（使用简单延时，因为 back 不会触发 chrome.tabs.onUpdated）
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const updatedTab = await chrome.tabs.get(tabId);
 
     return {
       id: command.id,
@@ -1033,6 +1072,7 @@ async function handleBack(command: CommandEvent): Promise<CommandResult> {
 
 /**
  * 处理 forward 命令 - 前进
+ * 使用 CDP 执行 history.forward()
  */
 async function handleForward(command: CommandEvent): Promise<CommandResult> {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1045,12 +1085,24 @@ async function handleForward(command: CommandEvent): Promise<CommandResult> {
     };
   }
 
-  console.log('[CommandHandler] Going forward in tab:', activeTab.id);
+  const tabId = activeTab.id;
+  console.log('[CommandHandler] Going forward in tab:', tabId);
 
   try {
-    await chrome.tabs.goForward(activeTab.id);
-    await waitForTabLoad(activeTab.id);
-    const updatedTab = await chrome.tabs.get(activeTab.id);
+    // 使用 CDP 执行 history.forward()
+    await ensureDebuggerAttached(tabId);
+    
+    // 执行前进
+    await chrome.debugger.sendCommand(
+      { tabId },
+      'Runtime.evaluate',
+      { expression: 'window.history.forward()' }
+    );
+    
+    // 等待页面加载（使用简单延时，因为 forward 不会触发 chrome.tabs.onUpdated）
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const updatedTab = await chrome.tabs.get(tabId);
 
     return {
       id: command.id,
