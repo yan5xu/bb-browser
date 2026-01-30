@@ -24,6 +24,7 @@ import { getCommand, type GetAttribute } from "./commands/get.js";
 import { screenshotCommand } from "./commands/screenshot.js";
 import { waitCommand } from "./commands/wait.js";
 import { pressCommand } from "./commands/press.js";
+import { scrollCommand } from "./commands/scroll.js";
 import { daemonCommand, stopCommand, statusCommand } from "./commands/daemon.js";
 import { reloadCommand } from "./commands/reload.js";
 
@@ -47,6 +48,7 @@ bb-browser - AI Agent 浏览器自动化工具
   screenshot [path] 截取当前页面
   wait <ms|@ref>    等待时间或元素
   press <key>       发送键盘按键（如 Enter, Tab, Control+a）
+  scroll <dir> [px] 滚动页面（up/down/left/right，默认 300px）
   daemon            前台启动 Daemon
   start             前台启动 Daemon（daemon 的别名）
   stop              停止 Daemon
@@ -262,6 +264,20 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await pressCommand(key, { json: parsed.flags.json });
+        break;
+      }
+
+      case "scroll": {
+        const direction = parsed.args[0];
+        const pixels = parsed.args[1]; // 传 string，scrollCommand 内部解析
+        if (!direction) {
+          console.error("错误：缺少方向参数");
+          console.error("用法：bb-browser scroll <up|down|left|right> [pixels]");
+          console.error("示例：bb-browser scroll down");
+          console.error("      bb-browser scroll up 500");
+          process.exit(1);
+        }
+        await scrollCommand(direction, pixels, { json: parsed.flags.json });
         break;
       }
 

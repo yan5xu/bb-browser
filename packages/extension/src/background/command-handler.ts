@@ -53,6 +53,10 @@ export async function handleCommand(command: CommandEvent): Promise<void> {
         result = await handlePress(command);
         break;
 
+      case 'scroll':
+        result = await handleScroll(command);
+        break;
+
       default:
         result = {
           id: command.id,
@@ -582,6 +586,74 @@ async function handlePress(command: CommandEvent): Promise<CommandResult> {
       id: command.id,
       success: false,
       error: `Press failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * 处理 scroll 命令 - 滚动页面
+ */
+async function handleScroll(command: CommandEvent): Promise<CommandResult> {
+  const direction = command.direction as string;
+  const pixels = (command.pixels as number) || 300;
+
+  if (!direction) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'Missing direction parameter',
+    };
+  }
+
+  if (!['up', 'down', 'left', 'right'].includes(direction)) {
+    return {
+      id: command.id,
+      success: false,
+      error: `Invalid direction: ${direction}`,
+    };
+  }
+
+  // 获取当前活动标签页
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.id) {
+    return {
+      id: command.id,
+      success: false,
+      error: 'No active tab found',
+    };
+  }
+
+  console.log('[CommandHandler] Scrolling:', direction, pixels, 'px');
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: (dir: string, px: number) => {
+        switch (dir) {
+          case 'up': window.scrollBy(0, -px); break;
+          case 'down': window.scrollBy(0, px); break;
+          case 'left': window.scrollBy(-px, 0); break;
+          case 'right': window.scrollBy(px, 0); break;
+        }
+      },
+      args: [direction, pixels],
+    });
+
+    return {
+      id: command.id,
+      success: true,
+      data: {
+        direction,
+        pixels,
+      },
+    };
+  } catch (error) {
+    console.error('[CommandHandler] Scroll failed:', error);
+    return {
+      id: command.id,
+      success: false,
+      error: `Scroll failed: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }
