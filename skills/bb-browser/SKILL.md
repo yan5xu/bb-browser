@@ -203,6 +203,48 @@ bb-browser get text @5 --json
 bb-browser open https://example.com --json
 ```
 
+## 信息提取 vs 页面操作
+
+**根据目的选择不同的方法：**
+
+### 提取页面内容（用 eval）
+
+当需要提取文章、正文等长文本时，用 `eval` 直接获取：
+
+```bash
+# 微信公众号文章
+bb-browser eval "document.querySelector('#js_content').innerText"
+
+# 知乎回答
+bb-browser eval "document.querySelector('.RichContent-inner').innerText"
+
+# 通用：获取页面主体文本
+bb-browser eval "document.body.innerText.substring(0, 5000)"
+
+# 获取所有链接
+bb-browser eval "[...document.querySelectorAll('a')].map(a => a.href).join('\n')"
+```
+
+**为什么不用 snapshot？** 
+有些网站（如微信公众号）DOM 结构嵌套很深，snapshot 输出会非常冗长。`eval` 直接提取文本更高效。
+
+### 操作页面元素（用 snapshot -i）
+
+当需要点击、填写、选择时，用 `snapshot -i` 获取可交互元素：
+
+```bash
+bb-browser snapshot -i
+# @1 [button] "登录"
+# @2 [input] placeholder="用户名"
+# @3 [input type="password"]
+
+bb-browser fill @2 "username"
+bb-browser fill @3 "password"  
+bb-browser click @1
+```
+
+**`-i` 很重要**：只显示可交互元素，过滤掉大量无关内容。
+
 ## 常见任务示例
 
 ### 表单填写
