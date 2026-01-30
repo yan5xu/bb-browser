@@ -11,8 +11,8 @@ export const DAEMON_HOST = "localhost";
 /** Daemon 基础 URL */
 export const DAEMON_BASE_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}`;
 
-/** SSE 心跳间隔（毫秒） */
-export const SSE_HEARTBEAT_INTERVAL = 30000; // 30 秒
+/** SSE 心跳间隔（毫秒） - 15秒确保 MV3 Service Worker 不休眠 */
+export const SSE_HEARTBEAT_INTERVAL = 15000; // 15 秒
 
 /** 命令执行超时时间（毫秒） */
 export const COMMAND_TIMEOUT = 30000; // 30 秒

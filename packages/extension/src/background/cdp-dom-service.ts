@@ -39,14 +39,40 @@ export interface SnapshotOptions {
 }
 
 // ============================================================================
-// 状态管理
+// 状态管理（使用 chrome.storage.session 持久化，防止 Service Worker 休眠丢失）
 // ============================================================================
 
-/** 存储最后一次 snapshot 的 refs，用于后续操作 */
+/** 内存缓存，加速访问 */
 let lastSnapshotRefs: Record<string, RefInfo> = {};
 
 /** 当前活动 Frame 的 frameId（用于 iframe 支持） */
 let activeFrameId: string | null = null;
+
+/** 从 storage 恢复 refs（Service Worker 唤醒时调用） */
+async function loadRefsFromStorage(): Promise<void> {
+  try {
+    const result = await chrome.storage.session.get('snapshotRefs');
+    if (result.snapshotRefs) {
+      lastSnapshotRefs = result.snapshotRefs;
+      console.log('[CDPDOMService] Loaded refs from storage:', Object.keys(lastSnapshotRefs).length);
+    }
+  } catch (e) {
+    console.warn('[CDPDOMService] Failed to load refs from storage:', e);
+  }
+}
+
+/** 保存 refs 到 storage */
+async function saveRefsToStorage(refs: Record<string, RefInfo>): Promise<void> {
+  try {
+    await chrome.storage.session.set({ snapshotRefs: refs });
+    console.log('[CDPDOMService] Saved refs to storage:', Object.keys(refs).length);
+  } catch (e) {
+    console.warn('[CDPDOMService] Failed to save refs to storage:', e);
+  }
+}
+
+// Service Worker 启动时恢复 refs
+loadRefsFromStorage();
 
 // ============================================================================
 // Snapshot 实现
@@ -77,8 +103,9 @@ export async function getSnapshot(
     };
   }
   
-  // 保存 refs 供后续操作使用
+  // 保存 refs 供后续操作使用（内存 + storage）
   lastSnapshotRefs = convertedRefs;
+  await saveRefsToStorage(convertedRefs);
   
   console.log('[CDPDOMService] Snapshot complete:', {
     linesCount: result.snapshot.split('\n').length,
@@ -97,9 +124,21 @@ export async function getSnapshot(
 
 /**
  * 获取 ref 对应的信息
+ * 优先从内存缓存读取，如果没有则尝试从 storage 恢复
  */
-export function getRefInfo(ref: string): RefInfo | null {
+export async function getRefInfo(ref: string): Promise<RefInfo | null> {
   const refId = ref.startsWith('@') ? ref.slice(1) : ref;
+  
+  // 先检查内存缓存
+  if (lastSnapshotRefs[refId]) {
+    return lastSnapshotRefs[refId];
+  }
+  
+  // 内存中没有，尝试从 storage 恢复
+  if (Object.keys(lastSnapshotRefs).length === 0) {
+    await loadRefsFromStorage();
+  }
+  
   return lastSnapshotRefs[refId] || null;
 }
 
@@ -192,7 +231,7 @@ export async function clickElement(
   tabId: number,
   ref: string
 ): Promise<{ role: string; name?: string }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -217,7 +256,7 @@ export async function hoverElement(
   tabId: number,
   ref: string
 ): Promise<{ role: string; name?: string }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -243,7 +282,7 @@ export async function fillElement(
   ref: string,
   text: string
 ): Promise<{ role: string; name?: string }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -291,7 +330,7 @@ export async function typeElement(
   ref: string,
   text: string
 ): Promise<{ role: string; name?: string }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -330,7 +369,7 @@ export async function typeElement(
  * 使用 CDP Runtime.evaluate
  */
 export async function getElementText(tabId: number, ref: string): Promise<string> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -364,7 +403,7 @@ export async function checkElement(
   tabId: number,
   ref: string
 ): Promise<{ role: string; name?: string; wasAlreadyChecked: boolean }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -406,7 +445,7 @@ export async function uncheckElement(
   tabId: number,
   ref: string
 ): Promise<{ role: string; name?: string; wasAlreadyUnchecked: boolean }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -449,7 +488,7 @@ export async function selectOption(
   ref: string,
   value: string
 ): Promise<{ role: string; name?: string; selectedValue: string; selectedLabel: string }> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }
@@ -519,7 +558,7 @@ export async function waitForElement(
   maxWait = 10000,
   interval = 200
 ): Promise<void> {
-  const refInfo = getRefInfo(ref);
+  const refInfo = await getRefInfo(ref);
   if (!refInfo) {
     throw new Error(`Ref "${ref}" not found. Run snapshot first to get available refs.`);
   }

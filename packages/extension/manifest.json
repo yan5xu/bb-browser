@@ -3,7 +3,7 @@
   "name": "bb-browser",
   "version": "0.1.0",
   "description": "Browser automation for AI agents",
-  "permissions": ["tabs", "activeTab", "scripting", "debugger"],
+  "permissions": ["tabs", "activeTab", "scripting", "debugger", "storage", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
