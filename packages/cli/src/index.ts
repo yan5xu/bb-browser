@@ -30,6 +30,7 @@ import { scrollCommand } from "./commands/scroll.js";
 import { daemonCommand, stopCommand, statusCommand } from "./commands/daemon.js";
 import { reloadCommand } from "./commands/reload.js";
 import { backCommand, forwardCommand, refreshCommand } from "./commands/nav.js";
+import { checkCommand, uncheckCommand } from "./commands/check.js";
 
 const VERSION = "0.0.1";
 
@@ -46,6 +47,8 @@ bb-browser - AI Agent 浏览器自动化工具
   hover <ref>       悬停在元素上
   fill <ref> <text> 填充输入框（清空后填入）
   type <ref> <text> 逐字符输入（不清空）
+  check <ref>       勾选复选框
+  uncheck <ref>     取消勾选复选框
   close             关闭当前标签页
   get text <ref>    获取元素文本
   get url           获取当前页面 URL
@@ -189,6 +192,30 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         await hoverCommand(ref, { json: parsed.flags.json });
+        break;
+      }
+
+      case "check": {
+        const ref = parsed.args[0];
+        if (!ref) {
+          console.error("错误：缺少 ref 参数");
+          console.error("用法：bb-browser check <ref>");
+          console.error("示例：bb-browser check @5");
+          process.exit(1);
+        }
+        await checkCommand(ref, { json: parsed.flags.json });
+        break;
+      }
+
+      case "uncheck": {
+        const ref = parsed.args[0];
+        if (!ref) {
+          console.error("错误：缺少 ref 参数");
+          console.error("用法：bb-browser uncheck <ref>");
+          console.error("示例：bb-browser uncheck @5");
+          process.exit(1);
+        }
+        await uncheckCommand(ref, { json: parsed.flags.json });
         break;
       }
 
