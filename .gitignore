@@ -3,7 +3,10 @@ node_modules/
 
 # Build outputs
 dist/
+/extension/
 *.tsbuildinfo
+*.tgz
+*.zip
 
 # Turborepo
 .turbo/
