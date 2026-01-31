@@ -1,16 +1,59 @@
 {
-  "name": "bb-browser-monorepo",
-  "private": true,
-  "version": "0.0.1",
-  "packageManager": "pnpm@9.15.0",
+  "name": "bb-browser",
+  "version": "0.1.0",
+  "description": "AI Agent browser automation CLI - control Chrome with user's login state",
+  "type": "module",
+  "bin": {
+    "bb-browser": "./dist/cli.js"
+  },
+  "main": "./dist/cli.js",
+  "files": [
+    "dist",
+    "extension",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build && pnpm build:release",
+    "build:release": "tsup && pnpm build:extension",
+    "build:extension": "cp -r packages/extension/dist extension",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules dist extension",
+    "prepublishOnly": "pnpm build:release"
+  },
+  "keywords": [
+    "browser",
+    "automation",
+    "ai",
+    "agent",
+    "chrome",
+    "extension",
+    "cli",
+    "puppeteer",
+    "playwright",
+    "cdp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yan5xu/bb-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yan5xu/bb-browser/issues"
+  },
+  "homepage": "https://github.com/yan5xu/bb-browser#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "tsup": "^8.0.0",
     "turbo": "^2.3.0",
     "typescript": "^5.7.0"
   }

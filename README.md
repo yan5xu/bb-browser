@@ -23,24 +23,32 @@ bb-browser CLI ──HTTP──▶ Daemon ──SSE──▶ Chrome Extension
 
 ## 安装
 
+### 方式 1：npm 安装（推荐）
+
 ```bash
-# 克隆仓库
-git clone https://github.com/anthropics/bb-browser.git
+npm install -g bb-browser
+```
+
+### 方式 2：从源码构建
+
+```bash
+git clone https://github.com/yan5xu/bb-browser.git
 cd bb-browser
-
-# 安装依赖
 pnpm install
-
-# 构建
 pnpm build
 ```
 
-### 加载扩展
+### 加载 Chrome 扩展
+
+**必须步骤**：CLI 需要配合 Chrome 扩展使用。
 
 1. 打开 Chrome，访问 `chrome://extensions/`
-2. 开启「开发者模式」
+2. 开启「开发者模式」（右上角开关）
 3. 点击「加载已解压的扩展程序」
-4. 选择 `packages/extension/dist/` 目录
+4. 选择扩展目录：
+   - npm 安装：`node_modules/bb-browser/extension/`
+   - 源码构建：`packages/extension/dist/`
+5. 确认扩展已启用
 
 ## 使用
 

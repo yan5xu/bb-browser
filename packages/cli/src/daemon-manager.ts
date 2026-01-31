@@ -3,17 +3,23 @@
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { DAEMON_BASE_URL } from "@bb-browser/shared";
 
 /** 获取 daemon dist 路径 */
 function getDaemonPath(): string {
-  // CLI dist 在 packages/cli/dist/index.js
-  // Daemon dist 在 packages/daemon/dist/index.js
   const currentFile = fileURLToPath(import.meta.url);
   const currentDir = dirname(currentFile);
-  // 从 cli/dist 回到 packages/，再进入 daemon/dist
+  
+  // npm 发布后：cli.js 和 daemon.js 在同一目录 (dist/)
+  const sameDirPath = resolve(currentDir, "daemon.js");
+  if (existsSync(sameDirPath)) {
+    return sameDirPath;
+  }
+  
+  // 开发模式：CLI dist 在 packages/cli/dist/，Daemon dist 在 packages/daemon/dist/
   return resolve(currentDir, "../../daemon/dist/index.js");
 }
 

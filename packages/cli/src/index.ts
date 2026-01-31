@@ -41,7 +41,7 @@ import { consoleCommand } from "./commands/console.js";
 import { errorsCommand } from "./commands/errors.js";
 import { traceCommand } from "./commands/trace.js";
 
-const VERSION = "0.0.1";
+const VERSION = "0.1.0";
 
 const HELP_TEXT = `
 bb-browser - AI Agent 浏览器自动化工具
