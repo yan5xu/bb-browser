@@ -11,6 +11,10 @@ export default defineConfig({
           src: 'manifest.json',
           dest: '.',
         },
+        {
+          src: 'options.html',
+          dest: '.',
+        },
       ],
     }),
   ],
@@ -21,6 +25,7 @@ export default defineConfig({
       input: {
         background: resolve(__dirname, 'src/background/index.ts'),
         'content/trace': resolve(__dirname, 'src/content/trace.ts'),
+        options: resolve(__dirname, 'src/options.ts'),
       },
       output: {
         entryFileNames: '[name].js',

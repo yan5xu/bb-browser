@@ -3,7 +3,7 @@
  * 使用 fetch + ReadableStream 实现，兼容 Service Worker (Manifest V3)
  */
 
-import { DAEMON_BASE_URL, SSE_RECONNECT_DELAY, SSE_MAX_RECONNECT_ATTEMPTS } from './constants';
+import { getUpstreamUrl, SSE_RECONNECT_DELAY, SSE_MAX_RECONNECT_ATTEMPTS } from './constants';
 
 export interface SSEEvent {
   type: 'connected' | 'heartbeat' | 'command';
@@ -33,7 +33,8 @@ export class SSEClient {
       return;
     }
 
-    const sseUrl = `${DAEMON_BASE_URL}/sse`;
+    const baseUrl = await getUpstreamUrl();
+    const sseUrl = `${baseUrl}/sse`;
     console.log('[SSEClient] Connecting to:', sseUrl);
     this.abortController = new AbortController();
 

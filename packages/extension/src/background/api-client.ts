@@ -3,7 +3,7 @@
  * 负责向 Daemon 回传命令执行结果
  */
 
-import { DAEMON_BASE_URL } from './constants';
+import { getUpstreamUrl } from './constants';
 
 export interface CommandResult {
   id: string;
@@ -16,7 +16,8 @@ export interface CommandResult {
  * 向 Daemon 发送命令执行结果
  */
 export async function sendResult(result: CommandResult): Promise<void> {
-  const url = `${DAEMON_BASE_URL}/result`;
+  const baseUrl = await getUpstreamUrl();
+  const url = `${baseUrl}/result`;
   console.log('[APIClient] Sending result:', result.id, result.success);
 
   try {

@@ -5,6 +5,7 @@
   "description": "Browser automation for AI agents",
   "permissions": ["tabs", "activeTab", "scripting", "debugger", "storage", "alarms"],
   "host_permissions": ["<all_urls>"],
+  "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
