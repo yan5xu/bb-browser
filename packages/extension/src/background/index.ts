@@ -20,6 +20,16 @@ const sseClient = new SSEClient();
 // 注册命令处理器
 sseClient.onCommand(handleCommand);
 
+// 监听上游 URL 变更，立即重连
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.upstreamUrl) {
+    const newUrl = changes.upstreamUrl.newValue || 'default';
+    console.log('[bb-browser] Upstream URL changed to:', newUrl, '— reconnecting...');
+    sseClient.disconnect();
+    sseClient.connect();
+  }
+});
+
 // 监听来自 Content Script 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[bb-browser] Message from content script:', message, 'sender:', sender.tab?.id);
